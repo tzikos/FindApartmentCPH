@@ -168,6 +168,11 @@ try:
 except Exception as e:
     logging.error(f"Error processing 'area' column: {e}")
 
+try:
+    # Map 'Ja' to 'Yes' and 'Nej' to 'No' in the 'furnished' column
+    df['furnished'] = df['furnished'].map({'Ja': 'Yes', 'Nej': 'No'}).fillna('Unknown')
+except Exception as e:
+    logging.error(f"Error processing 'furnished' column: {e}")
 # We want to make floor a numeric var so we have to make assumptions: Stuen (=living room) is ground floor, Kælder (=cellar) is -1, - is translated to 0 as there is no floor
 try:
     df['floor'] = df['floor'].apply(lambda x: x.replace('Stuen','0').replace('Kælder','-1').replace('-','0').replace('.','')).astype(int)

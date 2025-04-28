@@ -139,7 +139,9 @@ if latest_file:
         max_value=100,
         value=100
     )
-    
+
+    # Add a filter for furnished status
+    selected_furnished = st.sidebar.selectbox("Select Furnished", options=['All'] + df['furnished'].unique().tolist())
     # Apply Filters button
     if st.sidebar.button("Apply Filters"):
         # Start with the original dataset
@@ -148,7 +150,9 @@ if latest_file:
         # Apply all filters except percentile filter
         if selected_area != 'All':
             filtered_df = filtered_df[filtered_df['area'] == selected_area]
-            
+        
+        if selected_furnished != 'All':
+            filtered_df = filtered_df[filtered_df['furnished'] == selected_furnished]
         if selected_rooms != 'All':
             filtered_df = filtered_df[filtered_df['rooms'] == float(selected_rooms)]
             
@@ -204,7 +208,7 @@ if latest_file:
     # st.write(f"### Filtered Data ({len(st.session_state.filtered_df)} entries)")
     
     # Select the columns to display in the table and create a clean display dataframe
-    display_columns = ['url', 'area', 'total_rental_price', 'size_sqm', 'rooms', 'available_from', 'energy_mark']
+    display_columns = ['url', 'area', 'total_rental_price', 'size_sqm', 'rooms', 'available_from', 'energy_mark', 'furnished']
     filtered_df_display = st.session_state.filtered_df[display_columns].copy()
     
     # Convert available_from to datetime for better display
@@ -222,7 +226,8 @@ if latest_file:
         'size_sqm': 'Size (m²)',
         'rooms': 'Rooms',
         'available_from': 'Available From',
-        'energy_mark': 'Energy Mark'
+        'energy_mark': 'Energy Mark',
+        'furnished': 'Furnished'
     })
     
     
