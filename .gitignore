@@ -1,3 +1,4 @@
 *.csv
 *.txt
 *.log
+!data/latest/preprocessed_data_latest.csv

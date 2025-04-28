@@ -216,3 +216,6 @@ except Exception as e:
 
 # Save the dataframe with today's date in the filename
 df.to_csv(f'data/processed/preprocessed_data_{today_date}.csv', index=False, header=True, encoding='utf-8')
+
+# Save it also under latest folder
+df.to_csv(f'data/latest/preprocessed_data_latest.csv', index=False, header=True, encoding='utf-8')

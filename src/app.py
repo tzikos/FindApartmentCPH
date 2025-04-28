@@ -29,7 +29,7 @@ st.markdown("""
 
 # Function to get the latest CSV file from the 'data/preprocessed' folder
 def get_latest_file():
-    folder = 'data/processed'
+    folder = 'data/latest'
     files = [f for f in os.listdir(folder) if f.endswith('.csv')]
     if files:
         latest_file = max(files, key=lambda f: os.path.getmtime(os.path.join(folder, f)))
