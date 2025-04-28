@@ -42,6 +42,12 @@ def get_latest_file():
 latest_file = get_latest_file()
 
 if latest_file:
+    # Get the modification time of the latest file
+    latest_file_mtime = os.path.getmtime(latest_file)
+    latest_file_date = datetime.fromtimestamp(latest_file_mtime).strftime("%Y-%m-%d")
+    
+    # Big title with small last update text
+    st.markdown(f"# Find apartment in CPH  \n<Large>Last update {latest_file_date}</Large>", unsafe_allow_html=True)
     # Load data once at the beginning
     df = pd.read_csv(latest_file)
     
@@ -64,7 +70,7 @@ if latest_file:
     selected_area = st.sidebar.selectbox("Select Area", options=area_options)
 
     # Toggle to include apartments with null "available_from"
-    include_null_available_from = st.sidebar.checkbox("Include apartments with unknown Available From date", value=False)
+    include_null_available_from = st.sidebar.checkbox("Include apartments with unknown Available From date", value=True)
 
     # Available From filter (choose from date range)
     available_from_min = pd.to_datetime(df['available_from'], errors='coerce').min()
@@ -165,7 +171,7 @@ if latest_file:
         st.session_state.filtered_df = filtered_df
     
     # Display the filtered data with selected columns
-    st.write(f"### Filtered Data ({len(st.session_state.filtered_df)} entries)")
+    # st.write(f"### Filtered Data ({len(st.session_state.filtered_df)} entries)")
     
     # Select the columns to display in the table and create a clean display dataframe
     display_columns = ['url', 'area', 'total_rental_price', 'size_sqm', 'rooms', 'available_from', 'energy_mark']
@@ -189,20 +195,9 @@ if latest_file:
         'energy_mark': 'Energy Mark'
     })
     
-    # Create URL links in a way that works with st.dataframe
-    # We'll store the original URLs and make them clickable in a different way
-    # url_links = filtered_df_display['URL'].tolist()
-    # filtered_df_display['URL'] = "View Listing"
     
     # Display dataframe with clickable links using st.dataframe
     if not filtered_df_display.empty:
-        # # Function to make URLs clickable when clicked in the dataframe
-        # def on_click(data):
-        #     if data['column'] == "URL":
-        #         row_index = data['row']
-        #         url = url_links[row_index]
-        #         st.markdown(f'<script>window.open("{url}", "_blank")</script>', unsafe_allow_html=True)
-        #         st.session_state.clicked_link = url
         
          # Create a table for statistics (Min, Max, Average, Std Dev) for rent and size
         current_df = st.session_state.filtered_df
@@ -233,7 +228,7 @@ if latest_file:
         stats_df = pd.DataFrame(stats_data, index=['Rent', 'Size'])
 
         # Display the statistics table
-        st.write("### Statistics on Filtered Data:")
+        st.write(f"### Statistics on Filtered Data ({len(st.session_state.filtered_df)} entries):")
         st.dataframe(stats_df, use_container_width=True, hide_index=False)
         # Display with st.dataframe for interactive sorting
         st.dataframe(

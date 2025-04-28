@@ -2,13 +2,7 @@
 
 ## Setup
 
-In the project folder, run:
-
-`conda env create -f environment.yml`
-
-and then
-
-`conda activate find_apartment`
+`pip install -r requirements.txt`
 
 ## Scrape & Preprocess data
 
