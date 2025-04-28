@@ -66,25 +66,25 @@ if latest_file:
     energy_mark_options = df['energy_mark'].unique()
     selected_energy_mark = st.sidebar.selectbox("Select Energy Mark", options=['All'] + list(energy_mark_options))
 
-    # Slider for filtering apartments within nth IQR of total rental price
-    total_rental_price = df['monthly_rent'] + df['monthly_aconto']
-    q1 = total_rental_price.quantile(0.25)
-    q3 = total_rental_price.quantile(0.75)
-    iqr = q3 - q1
-    upper_bound = q3 + iqr
-    lower_bound = q1 - iqr
-    selected_iqr = st.sidebar.slider(
-        "Select IQR (upper bound for total rental price)",
+    # Calculate total rental price
+    df['total_rental_price'] = df['monthly_rent'] + df['monthly_aconto']
+
+    # Slider: what percentile you want to include (0 = cheapest only, 100 = everything)
+    selected_percentile = st.sidebar.slider(
+        "Show apartments up to N-th percentile of total rental price",
         min_value=0,
-        max_value=100,  # Use 100% of the IQR range
+        max_value=100,
         value=100
     )
 
-    # Apply IQR filter
-    upper_limit = lower_bound + (selected_iqr / 100) * iqr
-    df['total_rental_price'] = total_rental_price
-    filtered_df = df[df['total_rental_price'] <= upper_limit]
+    # Compute the threshold price at selected percentile
+    price_threshold = df['total_rental_price'].quantile(selected_percentile / 100)
 
+    # Filter apartments based on selected percentile
+    if selected_percentile < 100:
+        filtered_df = df[df['total_rental_price'] <= price_threshold]
+    else:
+        filtered_df = df.copy()
     # Apply other filters
     if selected_area != 'All':
         filtered_df = filtered_df[filtered_df['area'] == selected_area]
