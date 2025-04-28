@@ -3,6 +3,30 @@ import pandas as pd
 import os
 from datetime import datetime
 
+# Set up page config and custom CSS for left alignment
+st.set_page_config(page_title="Apartment Finder", layout="wide")
+
+# Custom CSS for left alignment and table styling
+st.markdown("""
+<style>
+    .dataframe th {
+        text-align: left !important;
+    }
+    .dataframe td {
+        text-align: left !important;
+    }
+    thead tr th {
+        text-align: left !important;
+    }
+    tbody tr td {
+        text-align: left !important;
+    }
+    div.row-widget.stRadio > div {
+        flex-direction: row;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Function to get the latest CSV file from the 'data/preprocessed' folder
 def get_latest_file():
     folder = 'data/processed'
@@ -28,6 +52,9 @@ if latest_file:
     if 'original_df' not in st.session_state:
         st.session_state.original_df = df.copy()
         st.session_state.filtered_df = df.copy()
+        # Initialize sorting state
+        st.session_state.sort_column = None
+        st.session_state.sort_direction = True  # True for ascending, False for descending
         
     # Streamlit sidebar for filters
     st.sidebar.header("Filter Options")
@@ -130,26 +157,56 @@ if latest_file:
             # Apply the filter
             filtered_df = filtered_df[filtered_df['total_rental_price'] <= price_threshold]
         
+        # Reset sorting when applying new filters
+        st.session_state.sort_column = None
+        st.session_state.sort_direction = True
+        
         # Save the filtered dataframe to session state
         st.session_state.filtered_df = filtered_df
     
     # Display the filtered data with selected columns
-    st.write(f"Filtered Data ({len(st.session_state.filtered_df)} entries):")
+    st.write(f"### Filtered Data ({len(st.session_state.filtered_df)} entries)")
     
-    # Select the columns to display in the table
+    # Select the columns to display in the table and create a clean display dataframe
     display_columns = ['url', 'area', 'total_rental_price', 'size_sqm', 'rooms', 'available_from', 'energy_mark']
-    filtered_df_display = st.session_state.filtered_df[display_columns]
-
-    # Make the URL column clickable
-    filtered_df_display['url'] = filtered_df_display['url'].apply(lambda x: f'<a href="{x}" target="_blank">{x}</a>')
-
-    # Display the data in the table with clickable URLs
-    st.markdown(filtered_df_display.to_html(escape=False), unsafe_allow_html=True)
-
-    # Create a table for statistics (Min, Max, Average, Std Dev) for rent and size
-    current_df = st.session_state.filtered_df
+    filtered_df_display = st.session_state.filtered_df[display_columns].copy()
     
-    if not current_df.empty:
+    # Convert available_from to datetime for better display
+    filtered_df_display['available_from'] = pd.to_datetime(filtered_df_display['available_from'], errors='coerce')
+    
+    # Format columns for better display
+    filtered_df_display['total_rental_price'] = filtered_df_display['total_rental_price'].round(0).astype(int)
+    filtered_df_display['size_sqm'] = filtered_df_display['size_sqm'].round(1)
+    
+    # Rename columns for display
+    filtered_df_display = filtered_df_display.rename(columns={
+        'url': 'URL',
+        'area': 'Area',
+        'total_rental_price': 'Total Rent',
+        'size_sqm': 'Size (m²)',
+        'rooms': 'Rooms',
+        'available_from': 'Available From',
+        'energy_mark': 'Energy Mark'
+    })
+    
+    # Create URL links in a way that works with st.dataframe
+    # We'll store the original URLs and make them clickable in a different way
+    # url_links = filtered_df_display['URL'].tolist()
+    # filtered_df_display['URL'] = "View Listing"
+    
+    # Display dataframe with clickable links using st.dataframe
+    if not filtered_df_display.empty:
+        # # Function to make URLs clickable when clicked in the dataframe
+        # def on_click(data):
+        #     if data['column'] == "URL":
+        #         row_index = data['row']
+        #         url = url_links[row_index]
+        #         st.markdown(f'<script>window.open("{url}", "_blank")</script>', unsafe_allow_html=True)
+        #         st.session_state.clicked_link = url
+        
+         # Create a table for statistics (Min, Max, Average, Std Dev) for rent and size
+        current_df = st.session_state.filtered_df
+        
         rent_stats = {
             'min': current_df['total_rental_price'].min(),
             'max': current_df['total_rental_price'].max(),
@@ -166,18 +223,31 @@ if latest_file:
 
         # Create a DataFrame to display the statistics
         stats_data = {
-            'Min': [rent_stats['min'], size_stats['min']],
-            'Max': [rent_stats['max'], size_stats['max']],
-            'Average': [rent_stats['avg'], size_stats['avg']],
-            'Std Dev': [rent_stats['std'], size_stats['std']]
+            'Min': [f"{rent_stats['min']:.0f} kr", f"{size_stats['min']:.1f} m²"],
+            'Max': [f"{rent_stats['max']:.0f} kr", f"{size_stats['max']:.1f} m²"],
+            'Average': [f"{rent_stats['avg']:.0f} kr", f"{size_stats['avg']:.1f} m²"],
+            'Std Dev': [f"{rent_stats['std']:.0f} kr", f"{size_stats['std']:.1f} m²"]
         }
 
         # Create the DataFrame for the statistics table
-        stats_df = pd.DataFrame(stats_data, index=['Rent', 'Size (sqm)'])
+        stats_df = pd.DataFrame(stats_data, index=['Rent', 'Size'])
 
         # Display the statistics table
         st.write("### Statistics on Filtered Data:")
-        st.dataframe(stats_df)
+        st.dataframe(stats_df, use_container_width=True, hide_index=False)
+        # Display with st.dataframe for interactive sorting
+        st.dataframe(
+        filtered_df_display,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "URL": st.column_config.LinkColumn(label="View Listing", display_text="View Listing"),
+            "Total Rent": st.column_config.NumberColumn(format="kr %d"),
+            "Size (m²)": st.column_config.NumberColumn(format="%.1f m²"),
+            "Available From": st.column_config.DateColumn(format="MMM DD, YYYY")
+        }
+    )
+
     else:
         st.write("No apartments match the selected filters.")
 
