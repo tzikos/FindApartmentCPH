@@ -108,6 +108,7 @@ except Exception as e:
     logging.error(f"Error converting float columns to int: {e}")
 
 try:
+    df['energy_mark_source'] = df['energy_mark_source'].fillna('')
     df['energy_mark'] = df['energy_mark_source'].apply(lambda x: x.split('/')[-1].split('_')[0])
 except Exception as e:
     logging.error(f"Error processing 'energy_mark' column: {e}")
@@ -151,6 +152,7 @@ def format_date(date_str):
     return date_str
 
 try:
+    df['available_from'] = df['available_from'].replace('Snarest muligt', datetime.today().strftime('%d.%m.%Y'))
     df['available_from'] = df['available_from'].apply(format_date)
     df['available_from'] = pd.to_datetime(df['available_from'], format='%d.%m.%Y', dayfirst=True)
 except Exception as e:

@@ -129,7 +129,7 @@ if latest_file:
     )
 
     # Energy mark filter
-    energy_mark_options = df['energy_mark'].unique()
+    energy_mark_options = df['energy_mark'].dropna().unique()
     selected_energy_mark = st.sidebar.selectbox("Select Energy Mark", options=['All'] + sorted(list(energy_mark_options)))
 
     # Slider: what percentile you want to include (0 = cheapest only, 100 = everything)
