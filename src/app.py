@@ -27,6 +27,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown(
+    """
+    <style>
+    /* Make sidebar wider */
+    [data-testid="stSidebar"] {
+        width: 500px; /* Or whatever width you want */
+    }
+    
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # Function to get the latest CSV file from the 'data/preprocessed' folder
 def get_latest_file():
     folder = 'data/latest'
@@ -84,12 +97,23 @@ if latest_file:
 
     # Price range filter (monthly rent)
     min_price, max_price = int(df['total_rental_price'].min()), int(df['total_rental_price'].max())
-    selected_price_range = st.sidebar.slider(
+
+    # Divide by 1000 for thousands
+    min_price_thousands = min_price / 1000
+    # Force the max of slider to be 45k
+    slider_max_thousands = 45.0
+
+    selected_price_range_thousands = st.sidebar.slider(
         "Select Price Range (monthly rent + aconto)",
-        min_value=min_price,
-        max_value=max_price,
-        value=(min_price, max_price)
+        min_value=min_price_thousands,
+        max_value=slider_max_thousands,
+        value=(min_price_thousands, slider_max_thousands),
+        format="%.1fk DKK"
     )
+    st.sidebar.markdown("<small>in thousands DKK, max shown as 45k+</small>", unsafe_allow_html=True)
+
+    # Multiply back after selection
+    selected_price_range = (selected_price_range_thousands[0] * 1000, selected_price_range_thousands[1] * 1000)
 
     # Number of rooms filter
     room_options = ['All'] + sorted([str(x) for x in df['rooms'].unique()])
@@ -141,10 +165,16 @@ if latest_file:
             ]
             
         # Apply price range filter
-        filtered_df = filtered_df[
-            (filtered_df['total_rental_price'] >= selected_price_range[0]) &
-            (filtered_df['total_rental_price'] <= selected_price_range[1])
-        ]
+        # If user selects 45k as maximum, treat it as "no maximum"
+        if selected_price_range[1] >= 45000:
+            filtered_df = filtered_df[
+                (filtered_df['total_rental_price'] >= selected_price_range[0])
+            ]
+        else:
+            filtered_df = filtered_df[
+                (filtered_df['total_rental_price'] >= selected_price_range[0]) &
+                (filtered_df['total_rental_price'] <= selected_price_range[1])
+            ]
         
         # Apply size filter
         filtered_df = filtered_df[
@@ -231,6 +261,7 @@ if latest_file:
         st.write(f"### Statistics on Filtered Data ({len(st.session_state.filtered_df)} entries):")
         st.dataframe(stats_df, use_container_width=True, hide_index=False)
         # Display with st.dataframe for interactive sorting
+        st.write(f"### Listings")
         st.dataframe(
         filtered_df_display,
         use_container_width=True,

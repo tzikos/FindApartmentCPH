@@ -110,7 +110,7 @@ def extract_apartment_info(html_content, url):
         if soup.select_one('img.css-rdsunt'):
             apartment_info['energy_mark_src'] = soup.select_one('img.css-rdsunt').get('src')
         else:
-            apartment_info['energy_mark_src'] = 'none'
+            apartment_info['energy_mark_src'] = None
     except Exception as e:
         apartment_info['energy_mark_src'] = None
         logging.error(f"Error extracting energy mark source for URL {url}: {e}")
