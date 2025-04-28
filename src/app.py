@@ -117,7 +117,7 @@ if latest_file:
 
     # Number of rooms filter
     room_options = ['All'] + sorted([str(x) for x in df['rooms'].unique()])
-    selected_rooms = st.sidebar.selectbox("Select Number of Rooms", options=room_options)
+    selected_rooms = st.sidebar.selectbox("Select min. Number of Rooms", options=room_options)
 
     # Size filter (square meters)
     min_size, max_size = int(df['size_sqm'].min()), int(df['size_sqm'].max())
@@ -154,7 +154,7 @@ if latest_file:
         if selected_furnished != 'All':
             filtered_df = filtered_df[filtered_df['furnished'] == selected_furnished]
         if selected_rooms != 'All':
-            filtered_df = filtered_df[filtered_df['rooms'] == float(selected_rooms)]
+            filtered_df = filtered_df[filtered_df['rooms'] >= float(selected_rooms)]
             
         if include_null_available_from:
             filtered_df = filtered_df[
