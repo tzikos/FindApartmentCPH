@@ -57,7 +57,7 @@ latest_file = get_latest_file()
 if latest_file:
     # Get the modification time of the latest file
     latest_file_mtime = os.path.getmtime(latest_file)
-    latest_file_date = datetime.fromtimestamp(latest_file_mtime).strftime("%Y-%m-%d")
+    latest_file_date = datetime.fromtimestamp(latest_file_mtime).strftime("%Y-%m-%d %H:%M:%S")
     
     # Big title with small last update text
     st.markdown(f"# Find apartment in CPH  \n<Large>Last update {latest_file_date}</Large>", unsafe_allow_html=True)
