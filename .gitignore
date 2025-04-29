@@ -2,3 +2,5 @@
 *.txt
 *.log
 !data/latest/preprocessed_data_latest.csv
+*.DS_Store
+!requirements.txt
