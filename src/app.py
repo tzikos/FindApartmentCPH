@@ -139,6 +139,14 @@ if latest_file:
 
     # Add a filter for furnished status
     selected_furnished = st.sidebar.selectbox("Select Furnished", options=['All'] + df['furnished'].unique().tolist())
+    
+    selected_days_on_website = st.sidebar.slider(
+        "Select Days on Website",
+        min_value=0,
+        max_value=90,
+        value=(0, 90)
+    )
+
     # Apply Filters button
     if st.sidebar.button("Apply Filters"):
         # Start with the original dataset
@@ -152,7 +160,12 @@ if latest_file:
             filtered_df = filtered_df[filtered_df['furnished'] == selected_furnished]
         if selected_rooms != 'All':
             filtered_df = filtered_df[filtered_df['rooms'] >= float(selected_rooms)]
-            
+        
+        filtered_df = filtered_df[
+            (filtered_df['days_on_website'] >= selected_days_on_website[0]) &
+            (filtered_df['days_on_website'] <= selected_days_on_website[1])
+        ]
+
         if include_null_available_from:
             filtered_df = filtered_df[
                 ((pd.to_datetime(filtered_df['available_from'], errors='coerce') >= pd.to_datetime(selected_available_from[0])) | 
@@ -206,7 +219,7 @@ if latest_file:
     # st.write(f"### Filtered Data ({len(st.session_state.filtered_df)} entries)")
     
     # Select the columns to display in the table and create a clean display dataframe
-    display_columns = ['url', 'area', 'total_rental_price', 'size_sqm', 'rooms', 'available_from', 'energy_mark', 'furnished']
+    display_columns = ['url', 'area', 'total_rental_price', 'size_sqm', 'rooms', 'available_from', 'energy_mark', 'furnished', 'creation_date']
     filtered_df_display = st.session_state.filtered_df[display_columns].copy()
     
     # Convert available_from to datetime for better display
@@ -225,7 +238,8 @@ if latest_file:
         'rooms': 'Rooms',
         'available_from': 'Available From',
         'energy_mark': 'Energy Mark',
-        'furnished': 'Furnished'
+        'furnished': 'Furnished',
+        'creation_date': 'Listing Date'
     })
     
     
@@ -273,7 +287,8 @@ if latest_file:
             "URL": st.column_config.LinkColumn(label="View Listing", display_text="View Listing"),
             "Total Rent": st.column_config.NumberColumn(format="kr %d"),
             "Size (m²)": st.column_config.NumberColumn(format="%.1f m²"),
-            "Available From": st.column_config.DateColumn(format="MMM DD, YYYY")
+            "Available From": st.column_config.DateColumn(format="MMM DD, YYYY"),
+            "Listing Date": st.column_config.DateColumn(format="MMM DD, YYYY"),
         }
     )
 
