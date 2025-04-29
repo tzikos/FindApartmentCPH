@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timedelta
 
 # Set up page config and custom CSS for left alignment
-st.set_page_config(page_title="Apartment Finder", layout="wide")
+st.set_page_config(page_title="🏠 Apartment Finder", layout="wide")
 
 # Custom CSS for left alignment and table styling
 st.markdown("""
@@ -48,7 +48,7 @@ def get_latest_file():
         latest_file = max(files, key=lambda f: os.path.getmtime(os.path.join(folder, f)))
         return os.path.join(folder, latest_file)
     else:
-        st.error("No preprocessed CSV files found.")
+        st.error("⚠️ No preprocessed CSV files found.")
         return None
 
 # Load the latest CSV file
@@ -60,7 +60,7 @@ if latest_file:
     latest_file_date = (datetime.fromtimestamp(latest_file_mtime) + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
     
     # Big title with small last update text
-    st.markdown(f"# Find apartment in CPH  \n<Large>Last update {latest_file_date} CET</Large>", unsafe_allow_html=True)
+    st.markdown(f"# 🏙️ Find apartment in CPH  \n<Large>🕒 Last update {latest_file_date} CET</Large>", unsafe_allow_html=True)
     # Load data once at the beginning
     df = pd.read_csv(latest_file)
     
@@ -76,20 +76,20 @@ if latest_file:
         st.session_state.sort_direction = True  # True for ascending, False for descending
         
     # Streamlit sidebar for filters
-    st.sidebar.header("Filter Options")
+    st.sidebar.header("🔍 Filter Options")
 
     # Area filter with "All" option
     area_options = ['All'] + sorted(list(df['area'].unique()))
-    selected_area = st.sidebar.selectbox("Select Area", options=area_options)
+    selected_area = st.sidebar.selectbox("📍 Select Area", options=area_options)
 
     # Toggle to include apartments with null "available_from"
     include_null_available_from = st.sidebar.checkbox("Include apartments with unknown Available From date", value=True)
-    # st.sidebar.date_input("Range, no date", [])
+
     # Available From filter (choose from date range)
     available_from_min = pd.to_datetime(df['available_from'], errors='coerce').min()
     available_from_max = pd.to_datetime(df['available_from'], errors='coerce').max()
     selected_available_from = st.sidebar.date_input(
-        "Select Availability Date Range", [available_from_min, available_from_max], min_value=available_from_min, max_value=available_from_max
+        "📅 Select Availability Date Range", [available_from_min, available_from_max], min_value=available_from_min, max_value=available_from_max
     )
 
     # Price range filter (monthly rent)
@@ -101,7 +101,7 @@ if latest_file:
     slider_max_thousands = 45.0
 
     selected_price_range_thousands = st.sidebar.slider(
-        "Select Price Range (monthly rent + aconto)",
+        "💰 Select Price Range (monthly rent + aconto)",
         min_value=min_price_thousands,
         max_value=slider_max_thousands,
         value=(min_price_thousands, slider_max_thousands),
@@ -114,12 +114,12 @@ if latest_file:
 
     # Number of rooms filter
     room_options = ['All'] + sorted([str(x) for x in df['rooms'].unique()])
-    selected_rooms = st.sidebar.selectbox("Select min. Number of Rooms", options=room_options)
+    selected_rooms = st.sidebar.selectbox("🛏️ Select min. Number of Rooms", options=room_options)
 
     # Size filter (square meters)
     min_size, max_size = int(df['size_sqm'].min()), int(df['size_sqm'].max())
     selected_size = st.sidebar.slider(
-        "Select Size Range (in sqm)",
+        "📐 Select Size Range (in sqm)",
         min_value=min_size,
         max_value=max_size,
         value=(min_size, max_size)
@@ -127,28 +127,28 @@ if latest_file:
 
     # Energy mark filter
     energy_mark_options = df['energy_mark'].dropna().unique()
-    selected_energy_mark = st.sidebar.selectbox("Select Energy Mark", options=['All'] + sorted(list(energy_mark_options)))
+    selected_energy_mark = st.sidebar.selectbox("⚡ Select Energy Mark", options=['All'] + sorted(list(energy_mark_options)))
 
     # Slider: what percentile you want to include (0 = cheapest only, 100 = everything)
     selected_percentile = st.sidebar.slider(
-        "Show apartments up to N-th percentile of total rental price",
+        "📊 Show apartments up to N-th percentile of total rental price",
         min_value=0,
         max_value=100,
         value=100
     )
 
     # Add a filter for furnished status
-    selected_furnished = st.sidebar.selectbox("Select Furnished", options=['All'] + df['furnished'].unique().tolist())
+    selected_furnished = st.sidebar.selectbox("🛋️ Select Furnished", options=['All'] + df['furnished'].unique().tolist())
     
     selected_days_on_website = st.sidebar.slider(
-        "Select Days on Website",
+        "⏳ Select Days on Website",
         min_value=0,
         max_value=90,
         value=(0, 90)
     )
 
     # Apply Filters button
-    if st.sidebar.button("Apply Filters"):
+    if st.sidebar.button("✅  Apply Filters"):
         # Start with the original dataset
         filtered_df = df.copy()
         
@@ -275,16 +275,17 @@ if latest_file:
         stats_df = pd.DataFrame(stats_data, index=['Rent', 'Size'])
 
         # Display the statistics table
-        st.write(f"### Statistics on Filtered Data ({len(st.session_state.filtered_df)} entries):")
+        st.write(f"### 📊 Statistics on Filtered Data ({len(st.session_state.filtered_df)} entries):")
         st.dataframe(stats_df, use_container_width=True, hide_index=False)
         # Display with st.dataframe for interactive sorting
-        st.write(f"### Listings")
+        st.write(f"### 🏘️ Listings")
         st.dataframe(
         filtered_df_display,
+        height=600,
         use_container_width=True,
         hide_index=True,
         column_config={
-            "URL": st.column_config.LinkColumn(label="View Listing", display_text="View Listing"),
+            "URL": st.column_config.LinkColumn(label="🔗 View Listing", display_text="View Listing"),
             "Total Rent": st.column_config.NumberColumn(format="kr %d"),
             "Size (m²)": st.column_config.NumberColumn(format="%.1f m²"),
             "Available From": st.column_config.DateColumn(format="MMM DD, YYYY"),
@@ -293,7 +294,7 @@ if latest_file:
     )
 
     else:
-        st.write("No apartments match the selected filters.")
+        st.write("❌ No apartments match the selected filters.")
 
 else:
-    st.write("No data available.")
+    st.write("❌ No data available.")
