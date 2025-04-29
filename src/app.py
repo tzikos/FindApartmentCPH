@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Set up page config and custom CSS for left alignment
 st.set_page_config(page_title="Apartment Finder", layout="wide")
@@ -57,10 +57,10 @@ latest_file = get_latest_file()
 if latest_file:
     # Get the modification time of the latest file
     latest_file_mtime = os.path.getmtime(latest_file)
-    latest_file_date = datetime.fromtimestamp(latest_file_mtime).strftime("%Y-%m-%d %H:%M:%S")
+    latest_file_date = (datetime.fromtimestamp(latest_file_mtime) + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
     
     # Big title with small last update text
-    st.markdown(f"# Find apartment in CPH  \n<Large>Last update {latest_file_date}</Large>", unsafe_allow_html=True)
+    st.markdown(f"# Find apartment in CPH  \n<Large>Last update {latest_file_date} CET</Large>", unsafe_allow_html=True)
     # Load data once at the beginning
     df = pd.read_csv(latest_file)
     
