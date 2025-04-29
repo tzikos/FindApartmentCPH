@@ -84,15 +84,12 @@ if latest_file:
 
     # Toggle to include apartments with null "available_from"
     include_null_available_from = st.sidebar.checkbox("Include apartments with unknown Available From date", value=True)
-
+    # st.sidebar.date_input("Range, no date", [])
     # Available From filter (choose from date range)
     available_from_min = pd.to_datetime(df['available_from'], errors='coerce').min()
     available_from_max = pd.to_datetime(df['available_from'], errors='coerce').max()
     selected_available_from = st.sidebar.date_input(
-        "Select Available From Date",
-        value=available_from_min,
-        min_value=available_from_min,
-        max_value=available_from_max
+        "Select Availability Date Range", [available_from_min, available_from_max], min_value=available_from_min, max_value=available_from_max
     )
 
     # Price range filter (monthly rent)
@@ -158,8 +155,9 @@ if latest_file:
             
         if include_null_available_from:
             filtered_df = filtered_df[
-                ((pd.to_datetime(filtered_df['available_from'], errors='coerce') >= pd.to_datetime(selected_available_from)) | 
-                (filtered_df['available_from'].isnull()))
+                ((pd.to_datetime(filtered_df['available_from'], errors='coerce') >= pd.to_datetime(selected_available_from[0])) | 
+                (filtered_df['available_from'].isnull())) &
+                (pd.to_datetime(filtered_df['available_from'], errors='coerce') <= pd.to_datetime(selected_available_from[1]))
             ]
         else:
             # Filter out null available_from and apply date filter
