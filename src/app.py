@@ -248,6 +248,38 @@ if latest_file:
 
     # Apply Filters button
     apply_clicked = st.sidebar.button("✅ Apply Filters")
+    
+    # Add a horizontal line to separate the apply button from reset button
+    st.sidebar.markdown("---")
+    
+    # Reset Filters button at the bottom of sidebar
+    if st.sidebar.button("🔄 Reset All Filters"):
+        # Reset all filter values to defaults
+        st.session_state.selected_area = []
+        st.session_state.include_null_available_from = True
+        st.session_state.selected_available_from = [
+            pd.to_datetime(df['available_from'], errors='coerce').min().date(),
+            pd.to_datetime(df['available_from'], errors='coerce').max().date()
+        ]
+        st.session_state.selected_price_range_thousands = (
+            int(df['total_rental_price'].min()) / 1000,
+            45.0  # Default max
+        )
+        st.session_state.selected_rooms = 'All'
+        st.session_state.selected_size = (
+            int(df['size_sqm'].min()),
+            int(df['size_sqm'].max())
+        )
+        st.session_state.selected_energy_mark = 'All'
+        st.session_state.selected_percentile = 100
+        st.session_state.selected_furnished = 'All'
+        st.session_state.selected_days_on_website = (0, 90)
+        st.session_state.selected_move_in_price_thousands = (
+            int(df['move_in_price'].min()) / 1000,
+            100.0  # Default max
+        )
+        st.session_state.apply_filters = True
+        st.rerun()  # Force Streamlit to rerun with new session values
 
     # Also simulate it if set by preset
     if st.session_state.get("apply_filters", False) or apply_clicked:
