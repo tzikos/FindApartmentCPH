@@ -49,6 +49,13 @@ def get_latest_file():
         st.error("⚠️ No preprocessed CSV files found.")
         return None
 
+# Initialize session state flags if they don't exist
+if 'initialized' not in st.session_state:
+    st.session_state.initialized = False
+    st.session_state.apply_filters = False
+    st.session_state.reset_filters = False
+    st.session_state.apply_preset = False
+
 # Load the latest CSV file
 latest_file = get_latest_file()
 
@@ -59,48 +66,85 @@ if latest_file:
 
     # Big title with small last update text
     st.markdown(f"# 🏙️ Find apartment in CPH  \n<Large>🕒 Last update {latest_file_date} CET</Large>", unsafe_allow_html=True)
+    
     # Load data once at the beginning
     df = pd.read_csv(latest_file)
 
     # Calculate total rental price once
     df['total_rental_price'] = df['monthly_rent'] + df['monthly_aconto']
+    
     # Create a new column 'move_in_price' by summing 'monthly_rent', 'monthly_aconto', 'deposit', and 'prepaid_rent'
     try:
         df['move_in_price'] = df[['monthly_rent', 'monthly_aconto', 'deposit', 'prepaid_rent']].sum(axis=1)
     except Exception as e:
         print(f"Error calculating move_in_price: {e}")
+        # Fallback if calculation fails
+        df['move_in_price'] = df['monthly_rent'] * 3  # Simple approximation
 
-    # Store the initial dataframe in session state if it doesn't exist
-    if 'original_df' not in st.session_state:
+    # Get available areas from the dataset
+    areas = sorted(list(df['area'].unique()))
+    
+    # Parse available dates once
+    available_dates = pd.to_datetime(df['available_from'], errors='coerce')
+    
+    # Calculate min/max dates for filters
+    if not available_dates.isna().all():
+        available_from_min = available_dates.min().date()
+        available_from_max = available_dates.max().date()
+    else:
+        # Default dates if no valid dates in dataset
+        today = datetime.now().date()
+        available_from_min = today
+        available_from_max = today + timedelta(days=90)
+    
+    # Calculate price ranges
+    min_price = int(df['total_rental_price'].min())
+    max_price = int(df['total_rental_price'].max())
+    min_price_thousands = min_price / 1000
+    max_price_thousands = 45.0  # Fixed max value for slider
+    
+    # Calculate move-in price ranges
+    min_move_in_price = int(df['move_in_price'].min())
+    max_move_in_price = int(df['move_in_price'].max())
+    min_move_in_price_thousands = min_move_in_price / 1000
+    max_move_in_price_thousands = 100.0  # Fixed max value for slider
+    
+    # Size ranges
+    min_size = int(df['size_sqm'].min())
+    max_size = int(df['size_sqm'].max())
+    
+    # Room options
+    room_options = ['All'] + sorted([str(x) for x in df['rooms'].dropna().unique()])
+    
+    # Energy mark options
+    energy_mark_options = ['All'] + sorted(list(df['energy_mark'].dropna().unique()))
+    
+    # Furnished options
+    furnished_options = ['All'] + sorted(df['furnished'].dropna().unique().tolist())
+
+    # Initialize session state only once
+    if not st.session_state.initialized:
         st.session_state.original_df = df.copy()
         st.session_state.filtered_df = df.copy()
+        
         # Initialize sorting state
         st.session_state.sort_column = None
         st.session_state.sort_direction = True  # True for ascending, False for descending
-        # Initialize filter values in session state
+        
+        # Initialize all filter values
         st.session_state.selected_area = []
         st.session_state.include_null_available_from = True
-        st.session_state.selected_available_from = [
-            pd.to_datetime(df['available_from'], errors='coerce').min().date(),
-            pd.to_datetime(df['available_from'], errors='coerce').max().date()
-        ]
-        st.session_state.selected_price_range_thousands = (
-            int(df['total_rental_price'].min()) / 1000,
-            45.0  # Default max
-        )
+        st.session_state.selected_available_from = [available_from_min, available_from_max]
+        st.session_state.selected_price_range_thousands = (min_price_thousands, max_price_thousands)
         st.session_state.selected_rooms = 'All'
-        st.session_state.selected_size = (
-            int(df['size_sqm'].min()),
-            int(df['size_sqm'].max())
-        )
+        st.session_state.selected_size = (min_size, max_size)
         st.session_state.selected_energy_mark = 'All'
         st.session_state.selected_percentile = 100
         st.session_state.selected_furnished = 'All'
         st.session_state.selected_days_on_website = (0, 90)
-        st.session_state.selected_move_in_price_thousands = (
-            int(df['move_in_price'].min()) / 1000,
-            100.0  # Default max
-        )
+        st.session_state.selected_move_in_price_thousands = (min_move_in_price_thousands, max_move_in_price_thousands)
+        
+        st.session_state.initialized = True
     
     # Streamlit sidebar for filters
     st.sidebar.header("🔍 Filter Options")
@@ -108,9 +152,15 @@ if latest_file:
     # --- Pre-saved Filters Section ---
     st.sidebar.subheader("🧠 Pre-saved Filters")
 
-    # Button to apply pre-saved filter (matches the screenshot)
-    if st.sidebar.button("🎯 Apply 'Large Apartments in CPH' Preset"):
-        # Store preset values directly in session state
+    # Button to apply pre-saved filter
+    preset_clicked = st.sidebar.button("🎯 Apply 'Large Apartments in CPH' Preset")
+    if preset_clicked:
+        st.session_state.apply_preset = True
+        st.rerun()
+    
+    # Handle preset application
+    if st.session_state.apply_preset:
+        # Store preset values
         st.session_state.selected_area = [
             'Frederiksberg C', 'Frederiksberg', 'København K', 'København NV', 
             'København N', 'København SV', 'København V', 'København Ø', 
@@ -118,257 +168,253 @@ if latest_file:
         ]
         st.session_state.include_null_available_from = True
         st.session_state.selected_available_from = [datetime(2025, 8, 1).date(), datetime(2025, 9, 1).date()]
-        st.session_state.selected_price_range_thousands = (4.6, 20.1)  # 4600 to 20100 in thousands
+        st.session_state.selected_price_range_thousands = (4.6, 20.1)
         st.session_state.selected_rooms = '4'
         st.session_state.selected_size = (80, 363)
         st.session_state.selected_energy_mark = 'All'
         st.session_state.selected_percentile = 100
         st.session_state.selected_furnished = 'All'
         st.session_state.selected_days_on_website = (0, 10)
-        st.session_state.selected_move_in_price_thousands = (6.4, 85.8)  # 6400 to 85800 in thousands
+        st.session_state.selected_move_in_price_thousands = (6.4, 85.8)
+        
+        # Reset flag and trigger filter application
+        st.session_state.apply_preset = False
         st.session_state.apply_filters = True
-        st.rerun()  # Force Streamlit to rerun with new session values
-
-    # Area filter with "All" option
-    area_options = ['All'] + sorted(list(df['area'].unique()))
+    
+    # Area filter
     selected_area = st.sidebar.multiselect(
         "📍 Select Area", 
-        options=area_options, 
+        options=areas,
         default=st.session_state.selected_area
     )
-    st.session_state.selected_area = selected_area
-
-    # Toggle to include apartments with null "available_from"
+    
+    # Include null available_from checkbox
     include_null_available_from = st.sidebar.checkbox(
         "Include apartments with unknown Available From date", 
         value=st.session_state.include_null_available_from
     )
-    st.session_state.include_null_available_from = include_null_available_from
-
-    # Available From filter (choose from date range)
-    available_from_min = pd.to_datetime(df['available_from'], errors='coerce').min().date()
-    available_from_max = pd.to_datetime(df['available_from'], errors='coerce').max().date()
+    
+    # Available From date range
     selected_available_from = st.sidebar.date_input(
         "📅 Select Availability Date Range", 
         st.session_state.selected_available_from, 
         min_value=available_from_min, 
         max_value=available_from_max
     )
-    st.session_state.selected_available_from = selected_available_from
-
-    # Price range filter (monthly rent)
-    min_price, max_price = int(df['total_rental_price'].min()), int(df['total_rental_price'].max())
-
-    # Divide by 1000 for thousands
-    min_price_thousands = min_price / 1000
-    # Force the max of slider to be 45k
-    slider_max_thousands = 45.0
-
+    
+    # Price range slider
     selected_price_range_thousands = st.sidebar.slider(
         "💰 Select Price Range (monthly rent + aconto)",
         min_value=min_price_thousands,
-        max_value=slider_max_thousands,
+        max_value=max_price_thousands,
         value=st.session_state.selected_price_range_thousands,
         format="%.1fk DKK"
     )
     st.sidebar.markdown("<small>in thousands DKK, max shown as 45k+</small>", unsafe_allow_html=True)
-    st.session_state.selected_price_range_thousands = selected_price_range_thousands
-
-    # Multiply back after selection
-    selected_price_range = (selected_price_range_thousands[0] * 1000, selected_price_range_thousands[1] * 1000)
-
-    # Number of rooms filter
-    room_options = ['All'] + sorted([str(x) for x in df['rooms'].unique()])
+    
+    # Rooms selectbox
     selected_rooms = st.sidebar.selectbox(
         "🛏️ Select min. Number of Rooms", 
         options=room_options,
         index=room_options.index(st.session_state.selected_rooms) if st.session_state.selected_rooms in room_options else 0
     )
-    st.session_state.selected_rooms = selected_rooms
-
-    # Size filter (square meters)
-    min_size, max_size = int(df['size_sqm'].min()), int(df['size_sqm'].max())
+    
+    # Size slider
     selected_size = st.sidebar.slider(
         "📐 Select Size Range (in sqm)",
         min_value=min_size,
         max_value=max_size,
         value=st.session_state.selected_size
     )
-    st.session_state.selected_size = selected_size
-
-    # Energy mark filter
-    energy_mark_options = df['energy_mark'].dropna().unique()
-    energy_options_list = ['All'] + sorted(list(energy_mark_options))
+    
+    # Energy mark selectbox
     selected_energy_mark = st.sidebar.selectbox(
         "⚡ Select Energy Mark", 
-        options=energy_options_list,
-        index=energy_options_list.index(st.session_state.selected_energy_mark) if st.session_state.selected_energy_mark in energy_options_list else 0
+        options=energy_mark_options,
+        index=energy_mark_options.index(st.session_state.selected_energy_mark) if st.session_state.selected_energy_mark in energy_mark_options else 0
     )
-    st.session_state.selected_energy_mark = selected_energy_mark
-
-    # Slider: what percentile you want to include (0 = cheapest only, 100 = everything)
+    
+    # Percentile slider
     selected_percentile = st.sidebar.slider(
         "📊 Show apartments up to N-th percentile of total rental price",
         min_value=0,
         max_value=100,
         value=st.session_state.selected_percentile
     )
-    st.session_state.selected_percentile = selected_percentile
-
-    # Add a filter for furnished status
-    furnished_options = ['All'] + df['furnished'].unique().tolist()
+    
+    # Furnished selectbox
     selected_furnished = st.sidebar.selectbox(
         "🛋️ Select Furnished", 
         options=furnished_options,
         index=furnished_options.index(st.session_state.selected_furnished) if st.session_state.selected_furnished in furnished_options else 0
     )
-    st.session_state.selected_furnished = selected_furnished
-
+    
+    # Days on website slider
     selected_days_on_website = st.sidebar.slider(
         "⏳ Select Days on Website",
         min_value=0,
         max_value=90,
         value=st.session_state.selected_days_on_website
     )
-    st.session_state.selected_days_on_website = selected_days_on_website
-
-    # Add a filter for move-in price in thousands format and convert back to original and set the max to 100k
-    min_move_in_price, max_move_in_price = int(df['move_in_price'].min()) / 1000, int(df['move_in_price'].max()) / 1000
-
+    
+    # Move-in price slider
     selected_move_in_price_thousands = st.sidebar.slider(
         "💵 Select Move-in Price Range",
-        min_value=min_move_in_price,
-        max_value=100.0,
+        min_value=min_move_in_price_thousands,
+        max_value=max_move_in_price_thousands,
         value=st.session_state.selected_move_in_price_thousands,
         format="%.1fk DKK"
     )
     st.sidebar.markdown("<small>in thousands DKK, max shown as 100k+</small>", unsafe_allow_html=True)
-    st.session_state.selected_move_in_price_thousands = selected_move_in_price_thousands
-    selected_move_in_price = (selected_move_in_price_thousands[0] * 1000, selected_move_in_price_thousands[1] * 1000)
-
+    
     # Apply Filters button
     apply_clicked = st.sidebar.button("✅ Apply Filters")
+    if apply_clicked:
+        # Store current filter values in session state
+        st.session_state.selected_area = selected_area
+        st.session_state.include_null_available_from = include_null_available_from
+        st.session_state.selected_available_from = selected_available_from
+        st.session_state.selected_price_range_thousands = selected_price_range_thousands
+        st.session_state.selected_rooms = selected_rooms
+        st.session_state.selected_size = selected_size
+        st.session_state.selected_energy_mark = selected_energy_mark
+        st.session_state.selected_percentile = selected_percentile
+        st.session_state.selected_furnished = selected_furnished
+        st.session_state.selected_days_on_website = selected_days_on_website
+        st.session_state.selected_move_in_price_thousands = selected_move_in_price_thousands
+        
+        # Set flag to apply filters and rerun
+        st.session_state.apply_filters = True
+        st.rerun()
     
-    # Add a horizontal line to separate the apply button from reset button
+    # Add a horizontal line to separate buttons
     st.sidebar.markdown("---")
     
-    # Reset Filters button at the bottom of sidebar
-    if st.sidebar.button("🔄 Reset All Filters"):
+    # Reset Filters button
+    reset_clicked = st.sidebar.button("🔄 Reset All Filters")
+    if reset_clicked:
+        st.session_state.reset_filters = True
+        st.rerun()
+    
+    # Handle reset filters action
+    if st.session_state.reset_filters:
         # Reset all filter values to defaults
         st.session_state.selected_area = []
         st.session_state.include_null_available_from = True
-        st.session_state.selected_available_from = [
-            pd.to_datetime(df['available_from'], errors='coerce').min().date(),
-            pd.to_datetime(df['available_from'], errors='coerce').max().date()
-        ]
-        st.session_state.selected_price_range_thousands = (
-            int(df['total_rental_price'].min()) / 1000,
-            45.0  # Default max
-        )
+        st.session_state.selected_available_from = [available_from_min, available_from_max]
+        st.session_state.selected_price_range_thousands = (min_price_thousands, max_price_thousands)
         st.session_state.selected_rooms = 'All'
-        st.session_state.selected_size = (
-            int(df['size_sqm'].min()),
-            int(df['size_sqm'].max())
-        )
+        st.session_state.selected_size = (min_size, max_size)
         st.session_state.selected_energy_mark = 'All'
         st.session_state.selected_percentile = 100
         st.session_state.selected_furnished = 'All'
         st.session_state.selected_days_on_website = (0, 90)
-        st.session_state.selected_move_in_price_thousands = (
-            int(df['move_in_price'].min()) / 1000,
-            100.0  # Default max
-        )
-        st.session_state.apply_filters = True
-        st.rerun()  # Force Streamlit to rerun with new session values
-
-    # Also simulate it if set by preset
-    if st.session_state.get("apply_filters", False) or apply_clicked:
-        apply_clicked = True
-        st.session_state.apply_filters = False
+        st.session_state.selected_move_in_price_thousands = (min_move_in_price_thousands, max_move_in_price_thousands)
         
+        # Reset flag and trigger filter application
+        st.session_state.reset_filters = False
+        st.session_state.apply_filters = True
+    
+    # Apply filters when necessary
+    if st.session_state.apply_filters:
         # Start with the original dataset
         filtered_df = df.copy()
         
-        # Apply all filters except percentile filter
-        if selected_area:
-            filtered_df = filtered_df[filtered_df['area'].isin(selected_area)]
+        # Apply area filter
+        if st.session_state.selected_area:
+            filtered_df = filtered_df[filtered_df['area'].isin(st.session_state.selected_area)]
         
-        if selected_furnished != 'All':
-            filtered_df = filtered_df[filtered_df['furnished'] == selected_furnished]
-        if selected_rooms != 'All':
-            filtered_df = filtered_df[filtered_df['rooms'] >= float(selected_rooms)]
+        # Apply furnished filter
+        if st.session_state.selected_furnished != 'All':
+            filtered_df = filtered_df[filtered_df['furnished'] == st.session_state.selected_furnished]
         
+        # Apply rooms filter
+        if st.session_state.selected_rooms != 'All':
+            filtered_df = filtered_df[filtered_df['rooms'] >= float(st.session_state.selected_rooms)]
+        
+        # Apply days on website filter
         filtered_df = filtered_df[
-            (filtered_df['days_on_website'] >= selected_days_on_website[0]) &
-            (filtered_df['days_on_website'] <= selected_days_on_website[1])
+            (filtered_df['days_on_website'] >= st.session_state.selected_days_on_website[0]) &
+            (filtered_df['days_on_website'] <= st.session_state.selected_days_on_website[1])
         ]
 
-        if include_null_available_from:
-            filtered_df = filtered_df[
-                ((pd.to_datetime(filtered_df['available_from'], errors='coerce') >= pd.to_datetime(selected_available_from[0])) | 
-                (filtered_df['available_from'].isnull())) &
-                (pd.to_datetime(filtered_df['available_from'], errors='coerce') <= pd.to_datetime(selected_available_from[1]))
-            ]
-        else:
-            # Filter out null available_from and apply date filter
-            filtered_df = filtered_df[
-                pd.to_datetime(filtered_df['available_from'], errors='coerce').notna() &
-                (pd.to_datetime(filtered_df['available_from'], errors='coerce') >= pd.to_datetime(selected_available_from[0])) &
-                (pd.to_datetime(filtered_df['available_from'], errors='coerce') <= pd.to_datetime(selected_available_from[1]))
-            ]
+        # Handle available_from filtering
+        try:
+            available_from_min = pd.to_datetime(st.session_state.selected_available_from[0])
+            available_from_max = pd.to_datetime(st.session_state.selected_available_from[1])
+            
+            if st.session_state.include_null_available_from:
+                filtered_df = filtered_df[
+                    ((pd.to_datetime(filtered_df['available_from'], errors='coerce') >= available_from_min) | 
+                    (filtered_df['available_from'].isnull())) &
+                    ((pd.to_datetime(filtered_df['available_from'], errors='coerce') <= available_from_max) | 
+                    (filtered_df['available_from'].isnull()))
+                ]
+            else:
+                # Filter out null available_from and apply date filter
+                filtered_df = filtered_df[
+                    pd.to_datetime(filtered_df['available_from'], errors='coerce').notna() &
+                    (pd.to_datetime(filtered_df['available_from'], errors='coerce') >= available_from_min) &
+                    (pd.to_datetime(filtered_df['available_from'], errors='coerce') <= available_from_max)
+                ]
+        except Exception as e:
+            st.warning(f"Date filtering error: {e}")
+            # If date filtering fails, keep all rows
+            pass
             
         # Apply price range filter
-        # If user selects 45k as maximum, treat it as "no maximum"
-        if selected_price_range[1] >= 45000:
-            filtered_df = filtered_df[
-                (filtered_df['total_rental_price'] >= selected_price_range[0])
-            ]
+        price_min = st.session_state.selected_price_range_thousands[0] * 1000
+        price_max = st.session_state.selected_price_range_thousands[1] * 1000
+        
+        # If user selects max value, treat it as "no maximum"
+        if price_max >= 45000:
+            filtered_df = filtered_df[filtered_df['total_rental_price'] >= price_min]
         else:
-            filtered_df = filtered_df[
-                (filtered_df['total_rental_price'] >= selected_price_range[0]) &
-                (filtered_df['total_rental_price'] <= selected_price_range[1])
-            ]
+            filtered_df = filtered_df[(filtered_df['total_rental_price'] >= price_min) & 
+                                      (filtered_df['total_rental_price'] <= price_max)]
         
         # Apply move-in price filter
-        if selected_move_in_price[1] >= 100000:
-            filtered_df = filtered_df[
-                (filtered_df['move_in_price'] >= selected_move_in_price[0])
-            ]
+        move_in_min = st.session_state.selected_move_in_price_thousands[0] * 1000
+        move_in_max = st.session_state.selected_move_in_price_thousands[1] * 1000
+        
+        if move_in_max >= 100000:
+            filtered_df = filtered_df[filtered_df['move_in_price'] >= move_in_min]
         else:
-            filtered_df = filtered_df[
-                (filtered_df['move_in_price'] >= selected_move_in_price[0]) &
-                (filtered_df['move_in_price'] <= selected_move_in_price[1])
-            ]
+            filtered_df = filtered_df[(filtered_df['move_in_price'] >= move_in_min) & 
+                                     (filtered_df['move_in_price'] <= move_in_max)]
 
         # Apply size filter
         filtered_df = filtered_df[
-            (filtered_df['size_sqm'] >= selected_size[0]) &
-            (filtered_df['size_sqm'] <= selected_size[1])
+            (filtered_df['size_sqm'] >= st.session_state.selected_size[0]) &
+            (filtered_df['size_sqm'] <= st.session_state.selected_size[1])
         ]
         
         # Apply energy mark filter
-        if selected_energy_mark != 'All':
-            filtered_df = filtered_df[filtered_df['energy_mark'] == selected_energy_mark]
+        if st.session_state.selected_energy_mark != 'All':
+            filtered_df = filtered_df[filtered_df['energy_mark'] == st.session_state.selected_energy_mark]
             
-        # Apply percentile filter LAST as requested
-        if selected_percentile < 100:
+        # Apply percentile filter LAST
+        if st.session_state.selected_percentile < 100:
             # Get the threshold price at the selected percentile
-            price_threshold = filtered_df['total_rental_price'].quantile(selected_percentile / 100)
+            price_threshold = filtered_df['total_rental_price'].quantile(st.session_state.selected_percentile / 100)
             # Apply the filter
             filtered_df = filtered_df[filtered_df['total_rental_price'] <= price_threshold]
         
-        # Reset sorting when applying new filters
+        # Reset sorting
         st.session_state.sort_column = None
         st.session_state.sort_direction = True
         
         # Save the filtered dataframe to session state
         st.session_state.filtered_df = filtered_df
-
-    # Display the filtered data with selected columns
-    # st.write(f"### Filtered Data ({len(st.session_state.filtered_df)} entries)")
-
-    # Select the columns to display in the table and create a clean display dataframe
-    display_columns = ['url', 'area', 'total_rental_price', 'size_sqm', 'rooms', 'available_from', 'energy_mark', 'furnished', 'creation_date', 'move_in_price']
+        
+        # Reset flag
+        st.session_state.apply_filters = False
+        
+    # Select the columns to display in the table
+    display_columns = ['url', 'area', 'total_rental_price', 'size_sqm', 'rooms', 'available_from', 
+                      'energy_mark', 'furnished', 'creation_date', 'move_in_price']
+    
+    # Create display dataframe
     filtered_df_display = st.session_state.filtered_df[display_columns].copy()
 
     # Convert available_from to datetime for better display
@@ -392,11 +438,10 @@ if latest_file:
         'move_in_price': 'Move-in Price'
     })
 
-
     # Display dataframe with clickable links using st.dataframe
     if not filtered_df_display.empty:
         
-        # Create a table for statistics (Min, Max, Average, Std Dev) for rent and size
+        # Create a table for statistics
         current_df = st.session_state.filtered_df
         
         rent_stats = {
@@ -427,7 +472,8 @@ if latest_file:
         # Display the statistics table
         st.write(f"### 📊 Statistics on Filtered Data ({len(st.session_state.filtered_df)} entries):")
         st.dataframe(stats_df, use_container_width=True, hide_index=False)
-        # Display with st.dataframe for interactive sorting
+        
+        # Display listings
         st.write(f"### 🏘️ Listings")
         st.dataframe(
             filtered_df_display,
