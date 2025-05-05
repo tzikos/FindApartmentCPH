@@ -93,7 +93,7 @@ def extract_apartment_info(html_content, url):
         logging.error(f"Error extracting available from for URL {url}: {e}")
 
     try:
-        rental_period = soup.select('.css-14bctuo')[1].get_text(strip=True)
+        rental_period = soup.select('.css-30nv8k')[1].get_text(strip=True)
         apartment_info['rental_period'] = rental_period
     except Exception as e:
         apartment_info['rental_period'] = None
