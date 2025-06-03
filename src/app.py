@@ -73,6 +73,13 @@ if latest_file:
     # Calculate total rental price once
     df['total_rental_price'] = df['monthly_rent'] + df['monthly_aconto']
     
+    # Calculate rent per person metric: (total_monthly_rent - 900) / (number of rooms - 1)
+    # Only calculate for apartments with more than 1 room to avoid division by zero
+    df['rent_per_person'] = df.apply(lambda row: 
+        (row['total_rental_price'] - 900) / (row['rooms'] - 1) 
+        if pd.notna(row['rooms']) and row['rooms'] > 1 
+        else None, axis=1)
+    
     # Create a new column 'move_in_price' by summing 'monthly_rent', 'monthly_aconto', 'deposit', and 'prepaid_rent'
     try:
         df['move_in_price'] = df[['monthly_rent', 'monthly_aconto', 'deposit', 'prepaid_rent']].sum(axis=1)
@@ -109,6 +116,17 @@ if latest_file:
     min_move_in_price_thousands = min_move_in_price / 1000
     max_move_in_price_thousands = 100.0  # Fixed max value for slider
     
+    # Calculate rent per person ranges (only for non-null values)
+    rent_per_person_valid = df['rent_per_person'].dropna()
+    if not rent_per_person_valid.empty:
+        min_rent_per_person = int(rent_per_person_valid.min())
+        max_rent_per_person = int(rent_per_person_valid.max())
+        min_rent_per_person_thousands = min_rent_per_person / 1000
+        max_rent_per_person_thousands = min(max_rent_per_person / 1000, 20.0)  # Cap at 20k for slider
+    else:
+        min_rent_per_person_thousands = 0.0
+        max_rent_per_person_thousands = 20.0
+    
     # Size ranges
     min_size = int(df['size_sqm'].min())
     max_size = int(df['size_sqm'].max())
@@ -143,6 +161,7 @@ if latest_file:
         st.session_state.selected_furnished = 'All'
         st.session_state.selected_days_on_website = (0, 90)
         st.session_state.selected_move_in_price_thousands = (min_move_in_price_thousands, max_move_in_price_thousands)
+        st.session_state.selected_rent_per_person_thousands = (min_rent_per_person_thousands, max_rent_per_person_thousands)
         
         st.session_state.initialized = True
     
@@ -164,7 +183,7 @@ if latest_file:
         st.session_state.selected_area = [
             'Frederiksberg C', 'Frederiksberg', 'København K', 'København NV', 
             'København N', 'København SV', 'København V', 'København Ø', 
-            'Nordhavn', 'Valby'
+            'Nordhavn', 'Valby', 'Hellerup', 'Vanløse'
         ]
         st.session_state.include_null_available_from = True
         st.session_state.selected_available_from = [datetime(2025, 8, 1).date(), datetime(2025, 9, 1).date()]
@@ -175,7 +194,8 @@ if latest_file:
         st.session_state.selected_percentile = 100
         st.session_state.selected_furnished = 'All'
         st.session_state.selected_days_on_website = (0, 10)
-        st.session_state.selected_move_in_price_thousands = (6.4, 85.8)
+        st.session_state.selected_move_in_price_thousands = (6.4, 110.0)
+        st.session_state.selected_rent_per_person_thousands = (min_rent_per_person_thousands, max_rent_per_person_thousands)
         
         # Reset flag and trigger filter application
         st.session_state.apply_preset = False
@@ -267,6 +287,16 @@ if latest_file:
     )
     st.sidebar.markdown("<small>in thousands DKK, max shown as 100k+</small>", unsafe_allow_html=True)
     
+    # Rent per person slider
+    selected_rent_per_person_thousands = st.sidebar.slider(
+        "👥 Select Rent Per Person Range",
+        min_value=min_rent_per_person_thousands,
+        max_value=max_rent_per_person_thousands,
+        value=st.session_state.selected_rent_per_person_thousands,
+        format="%.1fk DKK"
+    )
+    st.sidebar.markdown("<small>Formula: (monthly_rent - 900) / (rooms - 1), in thousands DKK</small>", unsafe_allow_html=True)
+    
     # Apply Filters button
     apply_clicked = st.sidebar.button("✅ Apply Filters")
     if apply_clicked:
@@ -282,6 +312,7 @@ if latest_file:
         st.session_state.selected_furnished = selected_furnished
         st.session_state.selected_days_on_website = selected_days_on_website
         st.session_state.selected_move_in_price_thousands = selected_move_in_price_thousands
+        st.session_state.selected_rent_per_person_thousands = selected_rent_per_person_thousands
         
         # Set flag to apply filters and rerun
         st.session_state.apply_filters = True
@@ -310,6 +341,7 @@ if latest_file:
         st.session_state.selected_furnished = 'All'
         st.session_state.selected_days_on_website = (0, 90)
         st.session_state.selected_move_in_price_thousands = (min_move_in_price_thousands, max_move_in_price_thousands)
+        st.session_state.selected_rent_per_person_thousands = (min_rent_per_person_thousands, max_rent_per_person_thousands)
         
         # Reset flag and trigger filter application
         st.session_state.reset_filters = False
@@ -383,6 +415,23 @@ if latest_file:
             filtered_df = filtered_df[(filtered_df['move_in_price'] >= move_in_min) & 
                                      (filtered_df['move_in_price'] <= move_in_max)]
 
+        # Apply rent per person filter
+        rent_per_person_min = st.session_state.selected_rent_per_person_thousands[0] * 1000
+        rent_per_person_max = st.session_state.selected_rent_per_person_thousands[1] * 1000
+        
+        # Only apply filter to apartments where rent_per_person is not null
+        if rent_per_person_max >= 20000:
+            filtered_df = filtered_df[
+                (filtered_df['rent_per_person'].isna()) | 
+                (filtered_df['rent_per_person'] >= rent_per_person_min)
+            ]
+        else:
+            filtered_df = filtered_df[
+                (filtered_df['rent_per_person'].isna()) |
+                ((filtered_df['rent_per_person'] >= rent_per_person_min) & 
+                 (filtered_df['rent_per_person'] <= rent_per_person_max))
+            ]
+
         # Apply size filter
         filtered_df = filtered_df[
             (filtered_df['size_sqm'] >= st.session_state.selected_size[0]) &
@@ -412,7 +461,7 @@ if latest_file:
         
     # Select the columns to display in the table
     display_columns = ['url', 'area', 'total_rental_price', 'size_sqm', 'rooms', 'available_from', 
-                      'energy_mark', 'furnished', 'creation_date', 'move_in_price']
+                      'energy_mark', 'furnished', 'creation_date', 'move_in_price', 'rent_per_person']
     
     # Create display dataframe
     filtered_df_display = st.session_state.filtered_df[display_columns].copy()
@@ -423,6 +472,7 @@ if latest_file:
     # Format columns for better display
     filtered_df_display['total_rental_price'] = filtered_df_display['total_rental_price'].round(0).astype(int)
     filtered_df_display['size_sqm'] = filtered_df_display['size_sqm'].round(1)
+    filtered_df_display['rent_per_person'] = filtered_df_display['rent_per_person'].round(0)
 
     # Rename columns for display
     filtered_df_display = filtered_df_display.rename(columns={
@@ -435,7 +485,8 @@ if latest_file:
         'energy_mark': 'Energy Mark',
         'furnished': 'Furnished',
         'creation_date': 'Listing Date',
-        'move_in_price': 'Move-in Price'
+        'move_in_price': 'Move-in Price',
+        'rent_per_person': 'Rent Per Person'
     })
 
     # Display dataframe with clickable links using st.dataframe
@@ -458,16 +509,30 @@ if latest_file:
             'std': current_df['size_sqm'].std()
         }
 
+        # Calculate rent per person stats (only for non-null values)
+        rent_per_person_valid = current_df['rent_per_person'].dropna()
+        if not rent_per_person_valid.empty:
+            rent_per_person_stats = {
+                'min': rent_per_person_valid.min(),
+                'max': rent_per_person_valid.max(),
+                'avg': rent_per_person_valid.mean(),
+                'std': rent_per_person_valid.std()
+            }
+        else:
+            rent_per_person_stats = {
+                'min': 0, 'max': 0, 'avg': 0, 'std': 0
+            }
+
         # Create a DataFrame to display the statistics
         stats_data = {
-            'Min': [f"{rent_stats['min']:.0f} kr", f"{size_stats['min']:.1f} m²"],
-            'Max': [f"{rent_stats['max']:.0f} kr", f"{size_stats['max']:.1f} m²"],
-            'Average': [f"{rent_stats['avg']:.0f} kr", f"{size_stats['avg']:.1f} m²"],
-            'Std Dev': [f"{rent_stats['std']:.0f} kr", f"{size_stats['std']:.1f} m²"]
+            'Min': [f"{rent_stats['min']:.0f} kr", f"{size_stats['min']:.1f} m²", f"{rent_per_person_stats['min']:.0f} kr"],
+            'Max': [f"{rent_stats['max']:.0f} kr", f"{size_stats['max']:.1f} m²", f"{rent_per_person_stats['max']:.0f} kr"],
+            'Average': [f"{rent_stats['avg']:.0f} kr", f"{size_stats['avg']:.1f} m²", f"{rent_per_person_stats['avg']:.0f} kr"],
+            'Std Dev': [f"{rent_stats['std']:.0f} kr", f"{size_stats['std']:.1f} m²", f"{rent_per_person_stats['std']:.0f} kr"]
         }
 
         # Create the DataFrame for the statistics table
-        stats_df = pd.DataFrame(stats_data, index=['Rent', 'Size'])
+        stats_df = pd.DataFrame(stats_data, index=['Rent', 'Size', 'Rent Per Person'])
 
         # Display the statistics table
         st.write(f"### 📊 Statistics on Filtered Data ({len(st.session_state.filtered_df)} entries):")
@@ -487,6 +552,7 @@ if latest_file:
                 "Available From": st.column_config.DateColumn(format="MMM DD, YYYY"),
                 "Listing Date": st.column_config.DateColumn(format="MMM DD, YYYY"),
                 "Move-in Price": st.column_config.NumberColumn(format="kr %d"),
+                "Rent Per Person": st.column_config.NumberColumn(format="kr %.0f"),
             }
         )
 
